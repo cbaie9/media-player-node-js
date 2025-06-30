@@ -1,3 +1,7 @@
+Appluncher/
+GuestAppsCache/
+auth.config.js
+
 # Logs
 logs
 *.log

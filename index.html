@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lecteur Média Local</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+</head>
+<body>
+  <header>
+  <div class="header-left">
+    <h1><i class="fas fa-play-circle"></i> Lecteur Local</h1>
+    <button id="back-to-explorer" class="control-btn" style="display:none;">
+      <i class="fas fa-folder"></i> Explorer
+    </button>
+  </div>
+  <div class="header-right">
+    <button id="back-to-explorer-2" class="control-btn theme-icon" style="display:none;" title="Explorer">
+      <i class="fas fa-folder-open"></i>
+    </button>
+    <button id="theme-toggle" class="control-btn theme-icon" title="Thème clair/sombre">
+      <i class="fas fa-moon"></i>
+    </button>
+  </div>
+</header>
+
+
+  <div class="media-container">
+    <div class="media-wrapper">
+      <video id="media-element" controls style="display: none;"></video>
+      <img id="image-element" style="display:none;">
+      <div id="loading-indicator"><i class="fas fa-spinner fa-spin"></i></div>
+      <div id="media-error">Fichier non supporté</div>
+    </div>
+
+    <div class="media-controls" id="media-controls" style="display: none;">
+      <button id="prev-btn" class="control-btn"><i class="fas fa-arrow-left"></i></button>
+      <button id="next-btn" class="control-btn"><i class="fas fa-arrow-right"></i></button>
+      <button id="fullscreen-btn" class="control-btn"><i class="fas fa-expand"></i></button>
+    </div>
+  </div>
+
+  <div class="file-explorer">
+    <div class="path-display">
+      <i class="fas fa-folder-open"></i>
+      <span id="current-path">/</span>
+    </div>
+    <div class="file-list" id="file-list"></div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
