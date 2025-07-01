@@ -34,7 +34,8 @@ header {
   gap: 10px;
 }
 
-.header-actions {
+.header-left,
+.header-right {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -130,6 +131,24 @@ header {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+.path-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+#path-input,
+#search-input {
+  flex: 1;
+  padding: 10px;
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
 .path-display {
   font-weight: bold;
   margin-bottom: 10px;
@@ -165,19 +184,4 @@ header {
   display: block;
   font-size: 2rem;
   margin-bottom: 8px;
-}
-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 0;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.header-left,
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }

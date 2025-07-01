@@ -24,12 +24,27 @@ document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupEventListeners();
   loadDirectory(currentPath);
+
+  // 🔎 Recherche
+  document.getElementById('search-input').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    const items = fileListElement.querySelectorAll('.file-item');
+    items.forEach(item => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(query) ? 'block' : 'none';
+    });
+  });
+
+  // 📂 Navigation par chemin
+  document.getElementById('go-path-btn').addEventListener('click', () => {
+    const newPath = document.getElementById('path-input').value.trim();
+    if (newPath) loadDirectory(newPath.startsWith('/') ? newPath : '/' + newPath);
+  });
 });
 
 function initTheme() {
   const savedTheme = localStorage.getItem('theme');
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-
   if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
     document.body.setAttribute('data-theme', 'dark');
     themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
@@ -49,9 +64,7 @@ backButton2.addEventListener('click', resetView);
 function setupEventListeners() {
   document.getElementById('prev-btn').addEventListener('click', prevMedia);
   document.getElementById('next-btn').addEventListener('click', nextMedia);
-  document.getElementById('fullscreen-btn').addEventListener('click', () => {
-    enterFullscreen(mediaElement);
-  });
+  document.getElementById('fullscreen-btn').addEventListener('click', () => enterFullscreen(mediaElement));
 
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement) resetView();
@@ -95,6 +108,7 @@ async function loadDirectory(path) {
   showLoading(true);
   currentPath = path;
   currentPathElement.textContent = path;
+  document.getElementById('path-input').value = path;
 
   try {
     const res = await fetch(`/api/list?path=${encodeURIComponent(path)}`);
@@ -150,7 +164,7 @@ function renderFileList() {
 
     item.addEventListener('click', () => {
       if (file.isDirectory) {
-        loadDirectory(`${currentPath}${file.name}/`);
+        loadDirectory(file.path);
       } else {
         openMedia(index);
       }
