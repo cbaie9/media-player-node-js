@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupEventListeners();
   loadDirectory(currentPath);
 
-  // 🔎 Recherche
+  // Recherche
   document.getElementById('search-input').addEventListener('input', (e) => {
     const query = e.target.value.toLowerCase();
     const items = fileListElement.querySelectorAll('.file-item');
@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 📂 Navigation par chemin
+  // Navigation par chemin
   document.getElementById('go-path-btn').addEventListener('click', () => {
     const newPath = document.getElementById('path-input').value.trim();
     if (newPath) loadDirectory(newPath.startsWith('/') ? newPath : '/' + newPath);
@@ -191,13 +191,12 @@ function openMedia(index) {
     imageElement.style.display = 'none';
     mediaElement.style.display = 'block';
     mediaElement.src = file.path;
+    mediaElement.controls = true;
     mediaControls.style.display = 'flex';
     document.getElementById('fullscreen-btn').style.display = 'inline-block';
 
-    mediaElement.onloadeddata = () => {
+    mediaElement.onloadedmetadata = () => {
       showLoading(false);
-      enterFullscreen(mediaElement);
-      mediaElement.play().catch(() => showError());
     };
 
     mediaElement.onerror = () => showError();

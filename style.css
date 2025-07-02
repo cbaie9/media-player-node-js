@@ -141,11 +141,12 @@ header {
 #path-input,
 #search-input {
   flex: 1;
+  min-width: 200px;
   padding: 10px;
   font-size: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  background: var(--bg-color);
+  background: var(--card-bg);
   color: var(--text-color);
 }
 
@@ -184,4 +185,9 @@ header {
   display: block;
   font-size: 2rem;
   margin-bottom: 8px;
+}
+
+.file-item.error {
+  color: var(--error-color);
+  grid-column: 1 / -1;
 }
