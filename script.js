@@ -3,6 +3,7 @@ const SUPPORTED_FORMATS = {
   videos: ['.mp4', '.webm', '.mov', '.avi', '.mkv']
 };
 
+// Éléments DOM
 const mediaElement = document.getElementById('media-element');
 const imageElement = document.getElementById('image-element');
 const fileListElement = document.getElementById('file-list');
@@ -14,28 +15,24 @@ const backButton = document.getElementById('back-to-explorer');
 const backButton2 = document.getElementById('back-to-explorer-2');
 const mediaControls = document.getElementById('media-controls');
 
+// Variables d'état
 let currentFiles = [];
 let currentIndex = 0;
 let currentPath = '/';
 let touchStartX = 0;
 let mouseStartX = null;
 
+// Initialisation
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupEventListeners();
+  setupUpload();
   loadDirectory(currentPath);
 
-  // Recherche
   document.getElementById('search-input').addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase();
-    const items = fileListElement.querySelectorAll('.file-item');
-    items.forEach(item => {
-      const text = item.textContent.toLowerCase();
-      item.style.display = text.includes(query) ? 'block' : 'none';
-    });
+    filterFiles(e.target.value.toLowerCase());
   });
 
-  // Navigation par chemin
   document.getElementById('go-path-btn').addEventListener('click', () => {
     const newPath = document.getElementById('path-input').value.trim();
     if (newPath) loadDirectory(newPath.startsWith('/') ? newPath : '/' + newPath);
@@ -51,57 +48,135 @@ function initTheme() {
   }
 }
 
-themeToggle.addEventListener('click', () => {
+// Configuration de l'upload
+function setupUpload() {
+  const uploadForm = document.createElement('div');
+  uploadForm.className = 'upload-form';
+  uploadForm.innerHTML = `
+    <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none">
+    <button id="upload-btn" class="control-btn">
+      <i class="fas fa-upload"></i> Upload
+    </button>
+    <div id="upload-progress" style="display:none">
+      <progress value="0" max="100"></progress>
+      <span id="progress-text">0%</span>
+    </div>
+  `;
+  
+  document.querySelector('.header-right').prepend(uploadForm);
+
+  document.getElementById('upload-btn').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+
+  document.getElementById('file-input').addEventListener('change', handleFileUpload);
+}
+
+async function handleFileUpload(e) {
+  const files = e.target.files;
+  if (files.length === 0) return;
+
+  const progress = document.getElementById('upload-progress');
+  const progressBar = progress.querySelector('progress');
+  const progressText = document.getElementById('progress-text');
+
+  progress.style.display = 'flex';
+  progressBar.value = 0;
+  progressText.textContent = '0%';
+
+  const formData = new FormData();
+  formData.append('path', currentPath);
+  Array.from(files).forEach(file => formData.append('mediaFiles', file));
+
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload', true);
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        progressBar.value = percent;
+        progressText.textContent = `${percent}%`;
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status === 200) {
+        loadDirectory(currentPath);
+      } else {
+        throw new Error('Upload failed');
+      }
+    };
+
+    xhr.onerror = () => {
+      throw new Error('Upload error');
+    };
+
+    xhr.send(formData);
+  } catch (error) {
+    console.error('Upload error:', error);
+    showError('Échec de l\'upload');
+  } finally {
+    setTimeout(() => progress.style.display = 'none', 2000);
+    document.getElementById('file-input').value = '';
+  }
+}
+
+function filterFiles(query) {
+  const items = fileListElement.querySelectorAll('.file-item');
+  items.forEach(item => {
+    const text = item.textContent.toLowerCase();
+    item.style.display = text.includes(query) ? 'block' : 'none';
+  });
+}
+
+function setupEventListeners() {
+  themeToggle.addEventListener('click', toggleTheme);
+  backButton.addEventListener('click', resetView);
+  backButton2.addEventListener('click', resetView);
+
+  document.getElementById('prev-btn').addEventListener('click', prevMedia);
+  document.getElementById('next-btn').addEventListener('click', nextMedia);
+  document.getElementById('fullscreen-btn').addEventListener('click', () => {
+    enterFullscreen(mediaElement.style.display !== 'none' ? mediaElement : imageElement);
+  });
+
+  mediaElement.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  mediaElement.addEventListener('touchend', handleSwipe);
+  imageElement.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  imageElement.addEventListener('touchend', handleSwipe);
+
+  mediaElement.addEventListener('mousedown', e => mouseStartX = e.clientX);
+  mediaElement.addEventListener('mouseup', handleMouseSwipe);
+  imageElement.addEventListener('mousedown', e => mouseStartX = e.clientX);
+  imageElement.addEventListener('mouseup', handleMouseSwipe);
+
+  document.addEventListener('keydown', handleKeyPress);
+}
+
+function handleSwipe(e) {
+  const diff = touchStartX - e.changedTouches[0].clientX;
+  if (Math.abs(diff) > 50) diff > 0 ? nextMedia() : prevMedia();
+}
+
+function handleMouseSwipe(e) {
+  if (mouseStartX === null) return;
+  const diff = mouseStartX - e.clientX;
+  if (Math.abs(diff) > 50) diff > 0 ? nextMedia() : prevMedia();
+  mouseStartX = null;
+}
+
+function handleKeyPress(e) {
+  if (e.key === 'ArrowLeft') prevMedia();
+  if (e.key === 'ArrowRight') nextMedia();
+  if (e.key === 'Escape' && document.fullscreenElement) resetView();
+}
+
+function toggleTheme() {
   const isDark = document.body.getAttribute('data-theme') === 'dark';
   document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
   themeToggle.innerHTML = isDark ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
   localStorage.setItem('theme', isDark ? 'light' : 'dark');
-});
-
-backButton.addEventListener('click', resetView);
-backButton2.addEventListener('click', resetView);
-
-function setupEventListeners() {
-  document.getElementById('prev-btn').addEventListener('click', prevMedia);
-  document.getElementById('next-btn').addEventListener('click', nextMedia);
-  document.getElementById('fullscreen-btn').addEventListener('click', () => enterFullscreen(mediaElement));
-
-  document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) resetView();
-  });
-
-  mediaElement.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
-  mediaElement.addEventListener('touchend', e => {
-    const diff = touchStartX - e.changedTouches[0].clientX;
-    if (Math.abs(diff) > 50) diff > 0 ? nextMedia() : prevMedia();
-  });
-
-  mediaElement.addEventListener('mousedown', e => mouseStartX = e.clientX);
-  mediaElement.addEventListener('mouseup', e => {
-    if (mouseStartX === null) return;
-    const diff = mouseStartX - e.clientX;
-    if (Math.abs(diff) > 50) diff > 0 ? nextMedia() : prevMedia();
-    mouseStartX = null;
-  });
-
-  document.addEventListener('keydown', e => {
-    if (e.key === 'ArrowLeft') prevMedia();
-    if (e.key === 'ArrowRight') nextMedia();
-  });
-}
-
-function resetView() {
-  document.querySelector('.file-explorer').style.display = 'block';
-  backButton.style.display = 'none';
-  backButton2.style.display = 'none';
-  mediaControls.style.display = 'none';
-  mediaElement.pause();
-  mediaElement.src = '';
-  imageElement.src = '';
-  mediaElement.style.display = 'none';
-  imageElement.style.display = 'none';
-  errorDisplay.style.display = 'none';
-  if (document.fullscreenElement) document.exitFullscreen();
 }
 
 async function loadDirectory(path) {
@@ -138,8 +213,7 @@ function renderFileList() {
     parentItem.addEventListener('click', () => {
       const parts = currentPath.split('/').filter(Boolean);
       parts.pop();
-      const newPath = '/' + parts.join('/') + (parts.length ? '/' : '');
-      loadDirectory(newPath);
+      loadDirectory('/' + parts.join('/') + (parts.length ? '/' : ''));
     });
     fileListElement.appendChild(parentItem);
   }
@@ -223,6 +297,20 @@ function openMedia(index) {
   }
 }
 
+function resetView() {
+  document.querySelector('.file-explorer').style.display = 'block';
+  backButton.style.display = 'none';
+  backButton2.style.display = 'none';
+  mediaControls.style.display = 'none';
+  mediaElement.pause();
+  mediaElement.src = '';
+  imageElement.src = '';
+  mediaElement.style.display = 'none';
+  imageElement.style.display = 'none';
+  errorDisplay.style.display = 'none';
+  if (document.fullscreenElement) document.exitFullscreen();
+}
+
 function prevMedia() {
   if (currentIndex > 0) openMedia(currentIndex - 1);
 }
@@ -245,8 +333,9 @@ function showLoading(show) {
   loadingIndicator.style.display = show ? 'block' : 'none';
 }
 
-function showError() {
+function showError(message = 'Fichier non supporté') {
   showLoading(false);
+  errorDisplay.textContent = message;
   errorDisplay.style.display = 'block';
 }
 

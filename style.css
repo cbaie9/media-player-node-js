@@ -191,3 +191,26 @@ header {
   color: var(--error-color);
   grid-column: 1 / -1;
 }
+.upload-form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#upload-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#upload-progress progress {
+  width: 100px;
+  height: 20px;
+}
+
+.upload-status {
+  margin-top: 10px;
+  padding: 8px;
+  background: var(--hover-color);
+  border-radius: 4px;
+}

@@ -2,6 +2,7 @@
   "dependencies": {
     "basic-auth": "^2.0.1",
     "express": "^5.1.0",
-    "express-basic-auth": "^1.2.1"
+    "express-basic-auth": "^1.2.1",
+    "multer": "^2.0.2"
   }
 }
