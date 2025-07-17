@@ -129,6 +129,29 @@ app.get('/media', (req, res) => {
   });
 });
 
+// API pour supprimer un fichier
+app.delete('/api/delete', (req, res) => {
+  const filePath = req.body?.path;
+  if (!filePath) return res.status(400).json({ error: 'Missing file path' });
+
+  const absolutePath = path.join(MEDIA_ROOT, filePath);
+  if (!absolutePath.startsWith(MEDIA_ROOT)) {
+    return res.status(403).json({ error: 'Access denied' });
+  }
+
+  fs.stat(absolutePath, (err, stats) => {
+    if (err || !stats) return res.status(404).json({ error: 'File not found' });
+
+    const deleteAction = stats.isDirectory() ? fs.rm : fs.unlink;
+
+    deleteAction(absolutePath, { recursive: true, force: true }, (err) => {
+      if (err) return res.status(500).json({ error: 'Deletion failed' });
+      res.json({ success: true });
+    });
+  });
+});
+
+
 // Démarrer le serveur
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

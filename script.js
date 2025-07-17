@@ -62,7 +62,7 @@ function setupUpload() {
       <span id="progress-text">0%</span>
     </div>
   `;
-  
+
   document.querySelector('.header-right').prepend(uploadForm);
 
   document.getElementById('upload-btn').addEventListener('click', () => {
@@ -115,7 +115,7 @@ async function handleFileUpload(e) {
     xhr.send(formData);
   } catch (error) {
     console.error('Upload error:', error);
-    showError('Échec de l\'upload');
+    showError('Échec de l upload');
   } finally {
     setTimeout(() => progress.style.display = 'none', 2000);
     document.getElementById('file-input').value = '';
@@ -233,8 +233,21 @@ function renderFileList() {
     const name = document.createElement('span');
     name.textContent = file.name;
 
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'control-btn';
+    deleteBtn.style.fontSize = '0.8rem';
+    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+    deleteBtn.title = 'Supprimer';
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm(`Supprimer "${file.name}" ?`)) {
+        deleteFile(file.path);
+      }
+    });
+
     item.appendChild(icon);
     item.appendChild(name);
+    item.appendChild(deleteBtn);
 
     item.addEventListener('click', () => {
       if (file.isDirectory) {
@@ -246,6 +259,23 @@ function renderFileList() {
 
     fileListElement.appendChild(item);
   });
+}
+
+async function deleteFile(path) {
+  try {
+    const res = await fetch('/api/delete', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ path })
+    });
+    if (!res.ok) throw new Error('Erreur suppression');
+    loadDirectory(currentPath);
+  } catch (err) {
+    console.error('Suppression échouée:', err);
+    showError('Impossible de supprimer ce fichier');
+  }
 }
 
 function openMedia(index) {
