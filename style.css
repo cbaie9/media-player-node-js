@@ -174,7 +174,8 @@ header {
   cursor: pointer;
   text-align: center;
   word-break: break-word;
-  transition: transform 0.2s;
+  transition: transform 0.2s, background 0.2s, border 0.2s;
+  border: 2px solid transparent;
 }
 
 .file-item:hover {
@@ -191,10 +192,13 @@ header {
   color: var(--error-color);
   grid-column: 1 / -1;
 }
+
 .upload-form {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px; /* Ajout de la marge sous les boutons */
 }
 
 #upload-progress {
@@ -213,4 +217,31 @@ header {
   padding: 8px;
   background: var(--hover-color);
   border-radius: 4px;
+}
+
+/* Nouveau : sélection suppression */
+.file-item.selected {
+  background: #630404;
+  border-color: #cc0000;
+}
+
+/* Masquer l'explorateur en mode visionnage média */
+body.media-active .file-explorer {
+  display: none;
+}
+
+/* Masquer les barres et boutons en mode visionnage média */
+body.media-active .upload-form,
+body.media-active #search-input,
+body.media-active .path-controls {
+  display: none !important;
+}
+
+/* Style pour le bouton "Sortir du dossier" pour l'aligner avec les autres */
+#file-list > .control-btn {
+  margin-bottom: 10px;
+  margin-left: 0;
+  margin-right: 0;
+  display: inline-flex;
+  align-items: center;
 }

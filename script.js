@@ -12,7 +12,6 @@ const loadingIndicator = document.getElementById('loading-indicator');
 const errorDisplay = document.getElementById('media-error');
 const themeToggle = document.getElementById('theme-toggle');
 const backButton = document.getElementById('back-to-explorer');
-const backButton2 = document.getElementById('back-to-explorer-2');
 const mediaControls = document.getElementById('media-controls');
 
 // Variables d'état
@@ -21,12 +20,15 @@ let currentIndex = 0;
 let currentPath = '/';
 let touchStartX = 0;
 let mouseStartX = null;
+let deleteMode = false;
+let selectedPaths = new Set();
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupEventListeners();
   setupUpload();
+  setupDeletionAndFolderControls();
   loadDirectory(currentPath);
 
   document.getElementById('search-input').addEventListener('input', (e) => {
@@ -42,16 +44,23 @@ document.addEventListener('DOMContentLoaded', () => {
 function initTheme() {
   const savedTheme = localStorage.getItem('theme');
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
-    document.body.setAttribute('data-theme', 'dark');
-    themeToggle.innerHTML = '<i class="fas fa-sun"></i>';
-  }
+  const prefersDark = savedTheme === 'dark' || (!savedTheme && systemDark);
+  document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+  themeToggle.innerHTML = prefersDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
 }
 
-// Configuration de l'upload
+// Thème
+function toggleTheme() {
+  const isDark = document.body.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  document.body.setAttribute('data-theme', newTheme);
+  themeToggle.innerHTML = newTheme === 'dark' ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
+  localStorage.setItem('theme', newTheme);
+}
+
+// Upload
 function setupUpload() {
-  const uploadForm = document.createElement('div');
-  uploadForm.className = 'upload-form';
+  const uploadForm = document.querySelector('.upload-form');
   uploadForm.innerHTML = `
     <input type="file" id="file-input" multiple accept="image/*,video/*" style="display:none">
     <button id="upload-btn" class="control-btn">
@@ -63,8 +72,6 @@ function setupUpload() {
     </div>
   `;
 
-  document.querySelector('.header-right').prepend(uploadForm);
-
   document.getElementById('upload-btn').addEventListener('click', () => {
     document.getElementById('file-input').click();
   });
@@ -74,7 +81,7 @@ function setupUpload() {
 
 async function handleFileUpload(e) {
   const files = e.target.files;
-  if (files.length === 0) return;
+  if (!files.length) return;
 
   const progress = document.getElementById('upload-progress');
   const progressBar = progress.querySelector('progress');
@@ -115,260 +122,299 @@ async function handleFileUpload(e) {
     xhr.send(formData);
   } catch (error) {
     console.error('Upload error:', error);
-    showError('Échec de l upload');
+    showError('Échec de l\'upload');
   } finally {
     setTimeout(() => progress.style.display = 'none', 2000);
     document.getElementById('file-input').value = '';
   }
 }
-
-function filterFiles(query) {
-  const items = fileListElement.querySelectorAll('.file-item');
-  items.forEach(item => {
-    const text = item.textContent.toLowerCase();
-    item.style.display = text.includes(query) ? 'block' : 'none';
-  });
-}
-
-function setupEventListeners() {
-  themeToggle.addEventListener('click', toggleTheme);
-  backButton.addEventListener('click', resetView);
-  backButton2.addEventListener('click', resetView);
-
-  document.getElementById('prev-btn').addEventListener('click', prevMedia);
-  document.getElementById('next-btn').addEventListener('click', nextMedia);
-  document.getElementById('fullscreen-btn').addEventListener('click', () => {
-    enterFullscreen(mediaElement.style.display !== 'none' ? mediaElement : imageElement);
-  });
-
-  mediaElement.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
-  mediaElement.addEventListener('touchend', handleSwipe);
-  imageElement.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
-  imageElement.addEventListener('touchend', handleSwipe);
-
-  mediaElement.addEventListener('mousedown', e => mouseStartX = e.clientX);
-  mediaElement.addEventListener('mouseup', handleMouseSwipe);
-  imageElement.addEventListener('mousedown', e => mouseStartX = e.clientX);
-  imageElement.addEventListener('mouseup', handleMouseSwipe);
-
-  document.addEventListener('keydown', handleKeyPress);
-}
-
-function handleSwipe(e) {
-  const diff = touchStartX - e.changedTouches[0].clientX;
-  if (Math.abs(diff) > 50) diff > 0 ? nextMedia() : prevMedia();
-}
-
-function handleMouseSwipe(e) {
-  if (mouseStartX === null) return;
-  const diff = mouseStartX - e.clientX;
-  if (Math.abs(diff) > 50) diff > 0 ? nextMedia() : prevMedia();
-  mouseStartX = null;
-}
-
-function handleKeyPress(e) {
-  if (e.key === 'ArrowLeft') prevMedia();
-  if (e.key === 'ArrowRight') nextMedia();
-  if (e.key === 'Escape' && document.fullscreenElement) resetView();
-}
-
-function toggleTheme() {
-  const isDark = document.body.getAttribute('data-theme') === 'dark';
-  document.body.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  themeToggle.innerHTML = isDark ? '<i class="fas fa-moon"></i>' : '<i class="fas fa-sun"></i>';
-  localStorage.setItem('theme', isDark ? 'light' : 'dark');
-}
-
-async function loadDirectory(path) {
-  showLoading(true);
-  currentPath = path;
-  currentPathElement.textContent = path;
-  document.getElementById('path-input').value = path;
-
-  try {
-    const res = await fetch(`/api/list?path=${encodeURIComponent(path)}`);
-    if (!res.ok) throw new Error("Erreur de chargement");
-    currentFiles = await res.json();
-    renderFileList();
-  } catch (error) {
-    console.error("Erreur:", error);
-    fileListElement.innerHTML = `
-      <div class="file-item error">
-        <i class="fas fa-exclamation-triangle"></i>
-        <span>Erreur de chargement</span>
-      </div>
-    `;
-  } finally {
-    showLoading(false);
-  }
+function loadDirectory(path) {
+  fetch(`/api/list?path=${encodeURIComponent(path)}`)
+    .then(res => res.json())
+    .then(data => {
+      currentPath = path;
+      currentPathElement.textContent = path;
+      document.getElementById('path-input').value = path;
+      currentFiles = data.files || [];
+      renderFileList();
+      hideMedia();
+    })
+    .catch(err => {
+      console.error(err);
+      showError('Impossible de charger le dossier.');
+    });
 }
 
 function renderFileList() {
   fileListElement.innerHTML = '';
 
-  if (currentPath !== '/') {
-    const parentItem = document.createElement('div');
-    parentItem.className = 'file-item';
-    parentItem.innerHTML = `<i class="fas fa-level-up-alt"></i><span>..</span>`;
-    parentItem.addEventListener('click', () => {
-      const parts = currentPath.split('/').filter(Boolean);
-      parts.pop();
-      loadDirectory('/' + parts.join('/') + (parts.length ? '/' : ''));
-    });
-    fileListElement.appendChild(parentItem);
+  // Ajout du bouton "Sortir du dossier" si on n'est pas à la racine
+  if (currentPath !== '/' && currentPath !== '') {
+    const upBtn = document.createElement('button');
+    upBtn.className = 'control-btn up-btn'; // Ajout d'une classe pour le style et l'identification
+    upBtn.innerHTML = '<i class="fas fa-level-up-alt"></i> Sortir du dossier';
+    upBtn.onclick = () => {
+      let parent = currentPath.replace(/\/+$/, '');
+      parent = parent.substring(0, parent.lastIndexOf('/'));
+      if (!parent || parent === '') parent = '/';
+      loadDirectory(parent);
+    };
+    fileListElement.appendChild(upBtn);
+  }
+
+  if (currentFiles.length === 0) {
+    const noFiles = document.createElement('div');
+    noFiles.className = 'file-item error';
+    noFiles.textContent = 'Aucun fichier trouvé.';
+    fileListElement.appendChild(noFiles);
+    return;
   }
 
   currentFiles.forEach((file, index) => {
-    const lower = file.name.toLowerCase();
-    if (['.bat', '.txt', '.url'].some(ext => lower.endsWith(ext))) return;
-
     const item = document.createElement('div');
     item.className = 'file-item';
+    item.innerHTML = `<i class="fas ${file.isDirectory ? 'fa-folder' : 'fa-file'}"></i>${file.name}`;
 
-    const icon = document.createElement('i');
-    icon.className = file.isDirectory ? 'fas fa-folder' :
-      SUPPORTED_FORMATS.images.some(ext => lower.endsWith(ext)) ? 'fas fa-image' :
-      'fas fa-film';
+    if (deleteMode) {
+      item.classList.add('deletable');
+      item.addEventListener('click', () => {
+        const selected = item.classList.toggle('selected');
+        if (selected) {
+          selectedPaths.add(file.path);
+        } else {
+          selectedPaths.delete(file.path);
+        }
+      });
+    } else {
+      item.addEventListener('click', () => {
+        if (file.isDirectory) {
+          loadDirectory(file.path);
+        } else {
+          openMedia(index);
+        }
+      });
+    }
 
-    const name = document.createElement('span');
-    name.textContent = file.name;
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'control-btn';
-    deleteBtn.style.fontSize = '0.8rem';
-    deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
-    deleteBtn.title = 'Supprimer';
-    deleteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (confirm(`Supprimer "${file.name}" ?`)) {
-        deleteFile(file.path);
-      }
-    });
-
-    item.appendChild(icon);
-    item.appendChild(name);
-    item.appendChild(deleteBtn);
-
-    item.addEventListener('click', () => {
-      if (file.isDirectory) {
-        loadDirectory(file.path);
-      } else {
-        openMedia(index);
-      }
-    });
+    if (deleteMode && selectedPaths.has(file.path)) {
+      item.classList.add('selected');
+    }
 
     fileListElement.appendChild(item);
   });
 }
 
-async function deleteFile(path) {
-  try {
-    const res = await fetch('/api/delete', {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ path })
-    });
-    if (!res.ok) throw new Error('Erreur suppression');
-    loadDirectory(currentPath);
-  } catch (err) {
-    console.error('Suppression échouée:', err);
-    showError('Impossible de supprimer ce fichier');
-  }
+function filterFiles(query) {
+  Array.from(fileListElement.children).forEach(child => {
+    // Ignore le bouton "Sortir du dossier" lors du filtrage
+    if (child.classList.contains('up-btn')) return;
+    const match = child.textContent.toLowerCase().includes(query);
+    child.style.display = match ? '' : 'none';
+  });
 }
 
 function openMedia(index) {
-  currentIndex = index;
   const file = currentFiles[index];
-  showLoading(true);
-  hideError();
+  currentIndex = index;
+  const extension = file.name.split('.').pop().toLowerCase();
+  const isImage = SUPPORTED_FORMATS.images.includes(`.${extension}`);
+  const isVideo = SUPPORTED_FORMATS.videos.includes(`.${extension}`);
 
-  document.querySelector('.file-explorer').style.display = 'none';
+  if (!isImage && !isVideo) {
+    showError('Format non supporté');
+    return;
+  }
+
+  document.body.classList.add('media-active');
+  // Affiche le bouton retour explorateur dans le header
   backButton.style.display = 'inline-block';
-  backButton2.style.display = 'inline-block';
 
-  const isVideo = SUPPORTED_FORMATS.videos.some(ext => file.name.toLowerCase().endsWith(ext));
-  const isImage = SUPPORTED_FORMATS.images.some(ext => file.name.toLowerCase().endsWith(ext));
+  // Masque les barres et boutons inutiles en mode média
+  document.querySelector('.upload-form').style.display = 'none';
+  document.getElementById('search-input').style.display = 'none';
+  document.querySelector('.path-controls').style.display = 'none';
 
-  if (isVideo) {
-    imageElement.style.display = 'none';
-    mediaElement.style.display = 'block';
-    mediaElement.src = file.path;
-    mediaElement.controls = true;
-    mediaControls.style.display = 'flex';
-    document.getElementById('fullscreen-btn').style.display = 'inline-block';
+  const src = `/media?path=${encodeURIComponent(file.path)}`;
+  errorDisplay.style.display = 'none';
 
-    mediaElement.onloadedmetadata = () => {
-      showLoading(false);
-    };
-
-    mediaElement.onerror = () => showError();
-  } else if (isImage) {
+  if (isImage) {
     mediaElement.style.display = 'none';
     imageElement.style.display = 'block';
-    imageElement.src = file.path;
-    mediaControls.style.display = 'flex';
-    document.getElementById('fullscreen-btn').style.display = 'none';
-
-    imageElement.onload = () => showLoading(false);
-    imageElement.onerror = () => showError();
-
-    imageElement.onclick = (e) => {
-      const rect = imageElement.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const width = rect.width;
-      if (clickX < width / 2) {
-        prevMedia();
-      } else {
-        nextMedia();
-      }
-    };
+    imageElement.src = src;
+  } else {
+    imageElement.style.display = 'none';
+    mediaElement.style.display = 'block';
+    mediaElement.src = src;
+    mediaElement.play();
   }
+
+  mediaControls.style.display = 'flex';
 }
 
-function resetView() {
-  document.querySelector('.file-explorer').style.display = 'block';
-  backButton.style.display = 'none';
-  backButton2.style.display = 'none';
-  mediaControls.style.display = 'none';
+function hideMedia() {
+  document.body.classList.remove('media-active');
+  imageElement.style.display = 'none';
+  mediaElement.style.display = 'none';
+  imageElement.src = '';
   mediaElement.pause();
   mediaElement.src = '';
-  imageElement.src = '';
-  mediaElement.style.display = 'none';
-  imageElement.style.display = 'none';
-  errorDisplay.style.display = 'none';
-  if (document.fullscreenElement) document.exitFullscreen();
-}
+  mediaControls.style.display = 'none';
+  // Cache le bouton retour explorateur dans le header
+  backButton.style.display = 'none';
 
-function prevMedia() {
-  if (currentIndex > 0) openMedia(currentIndex - 1);
+  // Réaffiche les barres et boutons en mode explorateur
+  document.querySelector('.upload-form').style.display = '';
+  document.getElementById('search-input').style.display = '';
+  document.querySelector('.path-controls').style.display = '';
 }
-
-function nextMedia() {
-  if (currentIndex < currentFiles.length - 1) openMedia(currentIndex + 1);
-}
-
-function enterFullscreen(element) {
-  if (element.requestFullscreen) {
-    element.requestFullscreen();
-  } else if (element.webkitRequestFullscreen) {
-    element.webkitRequestFullscreen();
-  } else if (element.msRequestFullscreen) {
-    element.msRequestFullscreen();
-  }
-}
-
-function showLoading(show) {
-  loadingIndicator.style.display = show ? 'block' : 'none';
-}
-
-function showError(message = 'Fichier non supporté') {
-  showLoading(false);
+function showError(message) {
   errorDisplay.textContent = message;
   errorDisplay.style.display = 'block';
 }
 
-function hideError() {
-  errorDisplay.style.display = 'none';
+function setupEventListeners() {
+  themeToggle.addEventListener('click', toggleTheme);
+  backButton.addEventListener('click', hideMedia);
+
+  document.addEventListener('keydown', (e) => {
+    if (mediaElement.style.display !== 'none' || imageElement.style.display !== 'none') {
+      if (e.key === 'ArrowLeft') showPrevious();
+      else if (e.key === 'ArrowRight') showNext();
+    }
+  });
+
+  imageElement.addEventListener('click', (e) => {
+    const mid = window.innerWidth / 2;
+    e.clientX < mid ? showPrevious() : showNext();
+  });
+
+  document.addEventListener('mousedown', e => mouseStartX = e.clientX);
+  document.addEventListener('mouseup', e => {
+    if (mouseStartX === null) return;
+    const delta = e.clientX - mouseStartX;
+    if (Math.abs(delta) > 100) {
+      delta < 0 ? showNext() : showPrevious();
+    }
+    mouseStartX = null;
+  });
+
+  imageElement.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
+  imageElement.addEventListener('touchend', e => {
+    const delta = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(delta) > 50) {
+      delta < 0 ? showNext() : showPrevious();
+    }
+  });
+
+  document.getElementById('prev-btn').addEventListener('click', showPrevious);
+  document.getElementById('next-btn').addEventListener('click', showNext);
+  document.getElementById('fullscreen-btn').addEventListener('click', () => {
+    const el = mediaElement.style.display !== 'none' ? mediaElement : imageElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+  });
+}
+
+function showPrevious() {
+  if (currentIndex > 0) openMedia(currentIndex - 1);
+}
+
+function showNext() {
+  if (currentIndex < currentFiles.length - 1) openMedia(currentIndex + 1);
+}
+
+async function deleteFile(filePath) {
+  const res = await fetch('/api/delete', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: filePath })
+  });
+  if (!res.ok) throw new Error('Échec suppression');
+}
+
+// 🔧 Contrôles Supprimer / Annuler / Nouveau dossier
+function setupDeletionAndFolderControls() {
+  const container = document.querySelector('.upload-form');
+
+  const deleteToggleBtn = document.createElement('button');
+  deleteToggleBtn.id = 'toggle-delete-mode';
+  deleteToggleBtn.className = 'control-btn';
+  deleteToggleBtn.innerHTML = '<i class="fas fa-trash"></i> Supprimer';
+  container.appendChild(deleteToggleBtn);
+
+  const cancelDeleteBtn = document.createElement('button');
+  cancelDeleteBtn.id = 'cancel-delete-mode';
+  cancelDeleteBtn.className = 'control-btn';
+  cancelDeleteBtn.innerHTML = '<i class="fas fa-times"></i> Annuler';
+  cancelDeleteBtn.style.display = 'none';
+  container.appendChild(cancelDeleteBtn);
+
+  const createFolderBtn = document.createElement('button');
+  createFolderBtn.id = 'create-folder-btn';
+  createFolderBtn.className = 'control-btn';
+  createFolderBtn.innerHTML = '<i class="fas fa-folder-plus"></i> Nouveau dossier';
+  container.appendChild(createFolderBtn);
+
+  deleteToggleBtn.addEventListener('click', () => {
+    if (deleteMode && selectedPaths.size > 0) {
+      if (confirm(`Supprimer ${selectedPaths.size} élément(s) ?`)) {
+        Promise.all([...selectedPaths].map(path => deleteFile(path)))
+          .then(() => {
+            selectedPaths.clear();
+            exitDeleteMode();
+            loadDirectory(currentPath);
+          });
+      }
+    } else {
+      enterDeleteMode();
+    }
+  });
+
+  cancelDeleteBtn.addEventListener('click', exitDeleteMode);
+
+  createFolderBtn.addEventListener('click', async () => {
+    const name = prompt("Nom du nouveau dossier :");
+    if (!name?.trim()) return;
+    try {
+      const res = await fetch('/api/mkdir', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ path: currentPath, name: name.trim() })
+      });
+      if (!res.ok) throw new Error("Échec création dossier");
+      loadDirectory(currentPath);
+    } catch (e) {
+      console.error(e);
+      showError("Impossible de créer le dossier");
+    }
+  });
+}
+
+function enterDeleteMode() {
+  deleteMode = true;
+  selectedPaths.clear();
+  document.getElementById('toggle-delete-mode').innerHTML = '<i class="fas fa-trash"></i> Supprimer';
+  document.getElementById('cancel-delete-mode').style.display = 'inline-block';
+  renderFileList();
+}
+
+function exitDeleteMode() {
+  deleteMode = false;
+  selectedPaths.clear();
+  document.getElementById('toggle-delete-mode').innerHTML = '<i class="fas fa-trash"></i> Supprimer';
+  document.getElementById('cancel-delete-mode').style.display = 'none';
+  renderFileList();
+}
+function enterDeleteMode() {
+  deleteMode = true;
+  selectedPaths.clear();
+  document.getElementById('toggle-delete-mode').innerHTML = '<i class="fas fa-trash"></i> Supprimer';
+  document.getElementById('cancel-delete-mode').style.display = 'inline-block';
+  renderFileList();
+}
+
+function exitDeleteMode() {
+  deleteMode = false;
+  selectedPaths.clear();
+  document.getElementById('toggle-delete-mode').innerHTML = '<i class="fas fa-trash"></i> Supprimer';
+  document.getElementById('cancel-delete-mode').style.display = 'none';
+  renderFileList();
 }
