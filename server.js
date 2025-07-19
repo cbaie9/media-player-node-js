@@ -158,6 +158,35 @@ app.post('/api/mkdir', (req, res) => {
   });
 });
 
+// ➡️ Renommage de fichier/dossier
+app.post('/api/rename', (req, res) => {
+  const { path: filePath, newName } = req.body;
+  if (!filePath || !newName) return res.status(400).json({ error: 'Missing parameters' });
+
+  // Vérification caractères interdits
+  if (/[\\/:*?"<>|]/.test(newName)) return res.status(400).json({ error: 'Nom de fichier invalide.' });
+
+  const absolutePath = path.join(MEDIA_ROOT, filePath);
+  if (!absolutePath.startsWith(MEDIA_ROOT)) return res.status(403).json({ error: 'Access denied' });
+
+  fs.stat(absolutePath, (err, stats) => {
+    if (err || !stats) return res.status(404).json({ error: 'File not found' });
+
+    const parentDir = path.dirname(absolutePath);
+    const targetPath = path.join(parentDir, newName);
+
+    // Vérifie si le fichier/dossier existe déjà
+    if (fs.existsSync(targetPath)) {
+      return res.status(400).json({ error: 'Un fichier ou dossier avec ce nom existe déjà.' });
+    }
+
+    fs.rename(absolutePath, targetPath, (err) => {
+      if (err) return res.status(500).json({ error: 'Erreur lors du renommage.' });
+      res.json({ success: true });
+    });
+  });
+});
+
 // Démarrer serveur
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);

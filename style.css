@@ -225,6 +225,12 @@ header {
   border-color: #cc0000;
 }
 
+/* Nouveau : sélection renommage */
+.file-item.selected-rename {
+  background: #018b16;
+  border-color: #024117;
+}
+
 /* Masquer l'explorateur en mode visionnage média */
 body.media-active .file-explorer {
   display: none;

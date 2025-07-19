@@ -22,6 +22,8 @@ let touchStartX = 0;
 let mouseStartX = null;
 let deleteMode = false;
 let selectedPaths = new Set();
+let renameMode = false;
+let selectedRenamePath = null;
 
 // Initialisation
 document.addEventListener('DOMContentLoaded', () => {
@@ -151,7 +153,7 @@ function renderFileList() {
   // Ajout du bouton "Sortir du dossier" si on n'est pas à la racine
   if (currentPath !== '/' && currentPath !== '') {
     const upBtn = document.createElement('button');
-    upBtn.className = 'control-btn up-btn'; // Ajout d'une classe pour le style et l'identification
+    upBtn.className = 'control-btn up-btn';
     upBtn.innerHTML = '<i class="fas fa-level-up-alt"></i> Sortir du dossier';
     upBtn.onclick = () => {
       let parent = currentPath.replace(/\/+$/, '');
@@ -185,6 +187,24 @@ function renderFileList() {
           selectedPaths.delete(file.path);
         }
       });
+    } else if (renameMode) {
+      // Mode renommage : sélection unique
+      item.classList.add('renamable');
+      item.addEventListener('click', () => {
+        // Désélectionner l'ancien si besoin
+        Array.from(fileListElement.getElementsByClassName('selected-rename')).forEach(el => {
+          el.classList.remove('selected-rename');
+        });
+        if (selectedRenamePath === file.path) {
+          selectedRenamePath = null;
+        } else {
+          item.classList.add('selected-rename');
+          selectedRenamePath = file.path;
+        }
+      });
+      if (selectedRenamePath === file.path) {
+        item.classList.add('selected-rename');
+      }
     } else {
       item.addEventListener('click', () => {
         if (file.isDirectory) {
@@ -353,6 +373,19 @@ function setupDeletionAndFolderControls() {
   createFolderBtn.innerHTML = '<i class="fas fa-folder-plus"></i> Nouveau dossier';
   container.appendChild(createFolderBtn);
 
+  const renameToggleBtn = document.createElement('button');
+  renameToggleBtn.id = 'toggle-rename-mode';
+  renameToggleBtn.className = 'control-btn';
+  renameToggleBtn.innerHTML = '<i class="fas fa-i-cursor"></i> Renommer';
+  container.appendChild(renameToggleBtn);
+
+  const cancelRenameBtn = document.createElement('button');
+  cancelRenameBtn.id = 'cancel-rename-mode';
+  cancelRenameBtn.className = 'control-btn';
+  cancelRenameBtn.innerHTML = '<i class="fas fa-times"></i> Annuler';
+  cancelRenameBtn.style.display = 'none';
+  container.appendChild(cancelRenameBtn);
+
   deleteToggleBtn.addEventListener('click', () => {
     if (deleteMode && selectedPaths.size > 0) {
       if (confirm(`Supprimer ${selectedPaths.size} élément(s) ?`)) {
@@ -386,6 +419,66 @@ function setupDeletionAndFolderControls() {
       showError("Impossible de créer le dossier");
     }
   });
+
+  renameToggleBtn.addEventListener('click', async () => {
+    if (deleteMode) return; // Ne pas activer en mode suppression
+
+    if (!renameMode) {
+      enterRenameMode();
+    } else if (selectedRenamePath) {
+      // Demander le nouveau nom
+      const fileObj = currentFiles.find(f => f.path === selectedRenamePath);
+      if (!fileObj) return;
+      let newName = prompt("Nouveau nom pour : " + fileObj.name, fileObj.name);
+      if (!newName || !newName.trim()) return;
+
+      newName = newName.trim();
+
+      // Vérification caractères interdits (simple)
+      if (/[\\/:*?"<>|]/.test(newName)) {
+        showError("Nom de fichier invalide.");
+        return;
+      }
+
+      // Vérifie si le nom existe déjà dans le dossier courant
+      const exists = currentFiles.some(f =>
+        f.name.toLowerCase() === newName.toLowerCase() && f.path !== selectedRenamePath
+      );
+      if (exists) {
+        showError("Un fichier ou dossier avec ce nom existe déjà.");
+        return;
+      }
+
+      // Gestion extension
+      let finalName = newName;
+      if (!fileObj.isDirectory) {
+        const oldExt = fileObj.name.includes('.') ? fileObj.name.substring(fileObj.name.lastIndexOf('.')) : '';
+        const hasExt = /\.[^\/\\]+$/.test(newName);
+        if (!hasExt && oldExt) {
+          finalName += oldExt;
+        }
+      }
+
+      try {
+        const res = await fetch('/api/rename', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: selectedRenamePath, newName: finalName })
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          showError(data.error || "Erreur lors du renommage.");
+          return;
+        }
+        exitRenameMode();
+        loadDirectory(currentPath);
+      } catch (e) {
+        showError("Erreur lors du renommage.");
+      }
+    }
+  });
+
+  cancelRenameBtn.addEventListener('click', exitRenameMode);
 }
 
 function enterDeleteMode() {
@@ -403,18 +496,23 @@ function exitDeleteMode() {
   document.getElementById('cancel-delete-mode').style.display = 'none';
   renderFileList();
 }
-function enterDeleteMode() {
-  deleteMode = true;
-  selectedPaths.clear();
-  document.getElementById('toggle-delete-mode').innerHTML = '<i class="fas fa-trash"></i> Supprimer';
-  document.getElementById('cancel-delete-mode').style.display = 'inline-block';
+
+function enterRenameMode() {
+  if (deleteMode) return;
+  renameMode = true;
+  selectedRenamePath = null;
+  document.getElementById('toggle-rename-mode').innerHTML = '<i class="fas fa-i-cursor"></i> Renommer';
+  document.getElementById('cancel-rename-mode').style.display = 'inline-block';
+  // Désactive le bouton suppression pendant renommage
+  document.getElementById('toggle-delete-mode').disabled = true;
   renderFileList();
 }
 
-function exitDeleteMode() {
-  deleteMode = false;
-  selectedPaths.clear();
-  document.getElementById('toggle-delete-mode').innerHTML = '<i class="fas fa-trash"></i> Supprimer';
-  document.getElementById('cancel-delete-mode').style.display = 'none';
+function exitRenameMode() {
+  renameMode = false;
+  selectedRenamePath = null;
+  document.getElementById('toggle-rename-mode').innerHTML = '<i class="fas fa-i-cursor"></i> Renommer';
+  document.getElementById('cancel-rename-mode').style.display = 'none';
+  document.getElementById('toggle-delete-mode').disabled = false;
   renderFileList();
 }
