@@ -9,24 +9,27 @@
 <body>
   <header>
     <div class="header-left">
-      <div class="path-display">
-        <i class="fas fa-folder"></i><span id="current-path">/</span>
+      <div class="path-display" id="breadcrumb-path">
+        <!-- Dynamique par JS -->
       </div>
-      <!-- Bouton retour explorateur déplacé ici -->
       <button id="back-to-explorer" class="control-btn" style="display:none" title="Retour à l'explorateur">
         <i class="fas fa-file"></i>
       </button>
     </div>
     <div class="header-right">
-      <!-- Barre de recherche -->
-      <input type="text" id="search-input" placeholder="Rechercher...">
-      <!-- Chemin + thème -->
-      <div class="path-controls">
-        <input type="text" id="path-input" placeholder="/path/to/folder">
-        <button id="go-path-btn" class="control-btn">Aller</button>
-        <button id="theme-toggle" class="control-btn theme-icon">
-          <i class="fas fa-moon"></i>
-        </button>
+      <div class="search-block">
+        <label for="search-input" class="search-label"><strong>Recherche :</strong> 🔎</label>
+        <input type="text" id="search-input" placeholder="Rechercher...">
+      </div>
+      <div class="path-block">
+        <label for="path-input" class="path-label"><strong>Aller :</strong></label>
+        <div class="path-controls">
+          <input type="text" id="path-input" placeholder="/path/to/folder">
+          <button id="go-path-btn" class="control-btn">Aller</button>
+          <button id="theme-toggle" class="control-btn theme-icon">
+            <i class="fas fa-moon"></i>
+          </button>
+        </div>
       </div>
     </div>
   </header>

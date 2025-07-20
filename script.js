@@ -13,6 +13,7 @@ const errorDisplay = document.getElementById('media-error');
 const themeToggle = document.getElementById('theme-toggle');
 const backButton = document.getElementById('back-to-explorer');
 const mediaControls = document.getElementById('media-controls');
+const breadcrumbPathElement = document.getElementById('breadcrumb-path');
 
 // Variables d'état
 let currentFiles = [];
@@ -130,22 +131,6 @@ async function handleFileUpload(e) {
     document.getElementById('file-input').value = '';
   }
 }
-function loadDirectory(path) {
-  fetch(`/api/list?path=${encodeURIComponent(path)}`)
-    .then(res => res.json())
-    .then(data => {
-      currentPath = path;
-      currentPathElement.textContent = path;
-      document.getElementById('path-input').value = path;
-      currentFiles = data.files || [];
-      renderFileList();
-      hideMedia();
-    })
-    .catch(err => {
-      console.error(err);
-      showError('Impossible de charger le dossier.');
-    });
-}
 
 function renderFileList() {
   fileListElement.innerHTML = '';
@@ -159,6 +144,8 @@ function renderFileList() {
       let parent = currentPath.replace(/\/+$/, '');
       parent = parent.substring(0, parent.lastIndexOf('/'));
       if (!parent || parent === '') parent = '/';
+      // Toujours garder un slash final pour les dossiers
+      if (!parent.endsWith('/')) parent += '/';
       loadDirectory(parent);
     };
     fileListElement.appendChild(upBtn);
@@ -175,7 +162,21 @@ function renderFileList() {
   currentFiles.forEach((file, index) => {
     const item = document.createElement('div');
     item.className = 'file-item';
-    item.innerHTML = `<i class="fas ${file.isDirectory ? 'fa-folder' : 'fa-file'}"></i>${file.name}`;
+
+    // Détermination de l'icône selon le type
+    let iconClass = 'fa-file';
+    if (file.isDirectory) {
+      iconClass = 'fa-folder';
+    } else {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (SUPPORTED_FORMATS.images.includes(`.${ext}`)) {
+        iconClass = 'fa-file-image';
+      } else if (SUPPORTED_FORMATS.videos.includes(`.${ext}`)) {
+        iconClass = 'fa-file-video';
+      }
+    }
+
+    item.innerHTML = `<i class="fas ${iconClass}"></i>${file.name}`;
 
     if (deleteMode) {
       item.classList.add('deletable');
@@ -208,7 +209,10 @@ function renderFileList() {
     } else {
       item.addEventListener('click', () => {
         if (file.isDirectory) {
-          loadDirectory(file.path);
+          // Correction : toujours garder un slash final pour les dossiers
+          let dirPath = file.path;
+          if (!dirPath.endsWith('/')) dirPath += '/';
+          loadDirectory(dirPath);
         } else {
           openMedia(index);
         }
@@ -515,4 +519,77 @@ function exitRenameMode() {
   document.getElementById('cancel-rename-mode').style.display = 'none';
   document.getElementById('toggle-delete-mode').disabled = false;
   renderFileList();
+}
+
+function updateBreadcrumbPath(path) {
+  // Nettoie le chemin et découpe
+  let cleanPath = path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
+  let parts = (cleanPath === '' || cleanPath === '/') ? [] : cleanPath.split('/').filter(Boolean);
+
+  breadcrumbPathElement.innerHTML = '';
+  // Ajoute la racine toujours en premier
+  let rootSpan = document.createElement('span');
+  rootSpan.className = 'breadcrumb-part breadcrumb-link';
+  rootSpan.innerHTML = '<i class="fas fa-folder"></i>';
+  rootSpan.style.cursor = parts.length === 0 ? 'default' : 'pointer';
+  if (parts.length > 0) {
+    rootSpan.addEventListener('click', () => loadDirectory('/'));
+  } else {
+    rootSpan.classList.remove('breadcrumb-link');
+    rootSpan.classList.add('breadcrumb-current');
+  }
+  breadcrumbPathElement.appendChild(rootSpan);
+
+  if (parts.length > 0) {
+    let current = '';
+    parts.forEach((part, idx) => {
+      // Séparateur
+      const sep = document.createElement('span');
+      sep.textContent = ' / ';
+      sep.className = 'breadcrumb-sep';
+      breadcrumbPathElement.appendChild(sep);
+
+      // Dossier cliquable
+      current += '/' + part;
+      let span = document.createElement('span');
+      span.className = 'breadcrumb-part';
+      span.textContent = part;
+      if (idx === parts.length - 1) {
+        span.classList.add('breadcrumb-current');
+        span.style.cursor = 'default';
+      } else {
+        span.classList.add('breadcrumb-link');
+        span.style.cursor = 'pointer';
+        span.addEventListener('click', () => {
+          // Toujours garder un slash final pour les dossiers
+          let p = '/' + parts.slice(0, idx + 1).join('/') + '/';
+          loadDirectory(p);
+        });
+      }
+      breadcrumbPathElement.appendChild(span);
+    });
+  }
+  // Met à jour aussi le champ path-input pour éviter les slashs en trop
+  document.getElementById('path-input').value = cleanPath === '' ? '/' : '/' + parts.join('/');
+}
+
+function loadDirectory(path) {
+  // Nettoie le chemin pour éviter les slashs multiples ou finaux
+  let cleanPath = path.replace(/\\/g, '/').replace(/\/+/g, '/');
+  // Toujours garder un slash final pour les dossiers (sauf racine)
+  if (cleanPath !== '/' && !cleanPath.endsWith('/')) cleanPath += '/';
+  if (cleanPath === '') cleanPath = '/';
+  fetch(`/api/list?path=${encodeURIComponent(cleanPath)}`)
+    .then(res => res.json())
+    .then(data => {
+      currentPath = cleanPath;
+      updateBreadcrumbPath(cleanPath);
+      currentFiles = data.files || [];
+      renderFileList();
+      hideMedia();
+    })
+    .catch(err => {
+      console.error(err);
+      showError('Impossible de charger le dossier.');
+    });
 }
