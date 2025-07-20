@@ -84,6 +84,12 @@ npm  install  basic-auth
 
 npm  install  express-basic-auth
 
+npm  install  bcryptjs
+
+npm  install  mutler
+
+npm  install  cookie-parser
+
 ```
 
   
@@ -92,18 +98,15 @@ npm  install  express-basic-auth
 
   
 
-Il faut créer un fichier nommé **auth.config.js** et y inserer :
-
   
 
-```bash
-
-  
-
-module.exports  =  {  USERNAME:  'admin',  PASSWORD:  'votre_mot_de_passe'  };
-
-  
-
+Modifier le fichier `users.json` pour définir les utilisateurs, mots de passe et niveaux :
+```json
+[
+  { "username": "admin_serveur", "password": "infra", "level": 3 },
+  { "username": "admin", "password": "adminpass", "level": 2 },
+  { "username": "invite", "password": "invitepass", "level": 1 }
+]
 ```
 
   

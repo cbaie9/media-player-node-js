@@ -331,6 +331,41 @@ body.media-active .path-controls {
   font-weight: normal;
 }
 
+.user-menu {
+  position: relative;
+  display: inline-block;
+  vertical-align: middle;
+}
+.user-menu .control-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.user-menu-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 110%;
+  background: var(--card-bg);
+  color: var(--text-color);
+  min-width: 180px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px #0002;
+  padding: 12px 18px;
+  z-index: 100;
+  font-size: 1rem;
+}
+.user-menu-dropdown.show {
+  display: block;
+}
+.user-menu-dropdown div {
+  margin-bottom: 6px;
+}
+.user-menu-dropdown div:last-child {
+  margin-bottom: 0;
+}
+
 @media (max-width: 700px) {
   .header-right {
     flex-direction: column;

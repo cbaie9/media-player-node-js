@@ -16,7 +16,19 @@
         <i class="fas fa-file"></i>
       </button>
     </div>
-    <div class="header-right">
+    <div class="header-right" style="align-items: flex-start; width: 100%; position: relative;">
+      <!-- Menu utilisateur déroulant en haut à droite, hors du flux normal -->
+      <div class="user-menu" id="user-menu-container" style="position: fixed; top: 18px; right: 24px; margin: 0; z-index: 200;">
+        <button id="user-menu-btn" class="control-btn" type="button">
+          <i class="fas fa-user"></i>
+          <span id="user-menu-name">Utilisateur</span>
+          <i class="fas fa-caret-down"></i>
+        </button>
+        <div class="user-menu-dropdown" id="user-menu-dropdown">
+          <div><strong>Nom :</strong> <span id="user-info-name"></span></div>
+          <div><strong>Niveau :</strong> <span id="user-info-level"></span></div>
+        </div>
+      </div>
       <div class="search-block">
         <label for="search-input" class="search-label"><strong>Recherche :</strong> 🔎</label>
         <input type="text" id="search-input" placeholder="Rechercher...">
@@ -29,7 +41,6 @@
           <button id="theme-toggle" class="control-btn theme-icon">
             <i class="fas fa-moon"></i>
           </button>
-          <!-- Bouton de déconnexion -->
           <button id="logout-btn" class="control-btn" title="Déconnexion">
             <i class="fas fa-sign-out-alt"></i>
           </button>
@@ -68,8 +79,15 @@
 
   <script src="script.js"></script>
   <script>
-    // Ajoute l'appel logout() sur le bouton
     document.getElementById('logout-btn').onclick = logout;
+    // Menu utilisateur déroulant
+    const userMenuBtn = document.getElementById('user-menu-btn');
+    const userMenuDropdown = document.getElementById('user-menu-dropdown');
+    userMenuBtn.onclick = function(e) {
+      e.stopPropagation();
+      userMenuDropdown.classList.toggle('show');
+    };
+    document.addEventListener('click', () => userMenuDropdown.classList.remove('show'));
   </script>
 </body>
 </html>

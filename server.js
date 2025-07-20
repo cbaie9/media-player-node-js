@@ -4,13 +4,24 @@ const fs = require('fs');
 const multer = require('multer');
 const cookieParser = require('cookie-parser');
 const crypto = require('crypto');
-const { USERNAME, PASSWORD } = require('./auth.config.js');
+const bcrypt = require('bcryptjs'); // Pour hashage si besoin
 
 const app = express();
 const PORT = 3000;
 const MEDIA_ROOT = path.join(__dirname, 'Appluncher');
 const SESSION_SECRET = crypto.randomBytes(32).toString('hex');
-const SESSIONS = new Set();
+const SESSIONS = new Map(); // sid -> { username, level }
+
+const USERS_PATH = path.join(__dirname, 'users.json');
+
+// Utilitaires pour charger les utilisateurs
+function loadUsers() {
+  if (!fs.existsSync(USERS_PATH)) return [];
+  return JSON.parse(fs.readFileSync(USERS_PATH, 'utf8'));
+}
+function getUser(username) {
+  return loadUsers().find(u => u.username === username);
+}
 
 // Configuration Multer pour l'upload
 const upload = multer({
@@ -27,17 +38,18 @@ const upload = multer({
 });
 
 app.use(cookieParser());
-app.use('/login', express.static(path.join(__dirname, 'login'))); // Sert le dossier login en public
+app.use('/login', express.static(path.join(__dirname, 'login')));
 app.use(express.static(path.join(__dirname, 'site')));
 app.use(express.json());
 
 // Middleware d'authentification par cookie
 function requireAuth(req, res, next) {
   const sid = req.cookies['sid'];
-  if (sid && SESSIONS.has(sid)) {
+  const session = SESSIONS.get(sid);
+  if (sid && session) {
+    req.user = session;
     return next();
   }
-  // Si requête API, renvoie 401, sinon redirige vers /login
   if (req.path.startsWith('/api') || req.path.startsWith('/media')) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
@@ -52,13 +64,14 @@ app.get('/login', (req, res) => {
 // Traitement du login
 app.post('/api/login', express.json(), (req, res) => {
   const { username, password } = req.body;
-  if (username === USERNAME && password === PASSWORD) {
-    const sid = crypto.randomBytes(32).toString('hex');
-    SESSIONS.add(sid);
-    res.cookie('sid', sid, { httpOnly: true, sameSite: 'Strict' });
-    return res.json({ success: true });
-  }
-  res.status(401).json({ error: 'Identifiants invalides' });
+  const user = getUser(username);
+  if (!user) return res.status(401).json({ error: 'Identifiants invalides' });
+  // Pour la démo, mot de passe en clair, sinon utiliser bcrypt.compareSync(password, user.password)
+  if (user.password !== password) return res.status(401).json({ error: 'Identifiants invalides' });
+  const sid = crypto.randomBytes(32).toString('hex');
+  SESSIONS.set(sid, { username, level: user.level });
+  res.cookie('sid', sid, { httpOnly: true, sameSite: 'Strict' });
+  res.json({ success: true, level: user.level });
 });
 
 // Déconnexion
@@ -72,8 +85,18 @@ app.post('/api/logout', (req, res) => {
 // Toutes les routes suivantes nécessitent l'auth
 app.use(requireAuth);
 
-// Upload
-app.post('/api/upload', upload.array('mediaFiles'), (req, res) => {
+// Middleware de vérification de niveau
+function requireLevel(minLevel) {
+  return (req, res, next) => {
+    if (!req.user || req.user.level < minLevel) {
+      return res.status(403).json({ error: 'Accès refusé' });
+    }
+    next();
+  };
+}
+
+// Upload (niveau 2+)
+app.post('/api/upload', requireLevel(2), upload.array('mediaFiles'), (req, res) => {
   try {
     if (!req.files?.length) return res.status(400).json({ error: 'No files received' });
 
@@ -96,7 +119,7 @@ app.post('/api/upload', upload.array('mediaFiles'), (req, res) => {
   }
 });
 
-// Liste de fichiers
+// Liste de fichiers (niveau 1+)
 app.get('/api/list', (req, res) => {
   const relPath = req.query.path || '/';
   // Correction : retire le préfixe /site si présent
@@ -105,6 +128,11 @@ app.get('/api/list', (req, res) => {
   if (safePath.startsWith('/site/')) safePath = safePath.slice(5);
   if (safePath.startsWith('site/')) safePath = safePath.slice(4);
   const targetDir = path.join(MEDIA_ROOT, safePath);
+
+  // Restriction dossier "tools" pour niveau < 3
+  if (safePath.replace(/\\/g, '/').startsWith('/tools') && req.user.level < 3) {
+    return res.status(403).json({ error: 'Accès refusé au dossier tools' });
+  }
 
   if (!targetDir.startsWith(MEDIA_ROOT)) return res.status(403).json({ error: 'Access denied' });
 
@@ -125,7 +153,7 @@ app.get('/api/list', (req, res) => {
   });
 });
 
-// Route média
+// Route média (lecture seule, niveau 1+)
 app.get('/media', (req, res) => {
   const filePath = req.query.path;
   if (!filePath) return res.status(400).send('Missing path');
@@ -163,8 +191,8 @@ app.get('/media', (req, res) => {
   });
 });
 
-// Suppression de fichier
-app.delete('/api/delete', (req, res) => {
+// Suppression de fichier (niveau 2+)
+app.delete('/api/delete', requireLevel(2), (req, res) => {
   const filePath = req.body?.path;
   if (!filePath) return res.status(400).json({ error: 'Missing file path' });
 
@@ -188,8 +216,8 @@ app.delete('/api/delete', (req, res) => {
   });
 });
 
-// ➕ Création de dossier
-app.post('/api/mkdir', (req, res) => {
+// ➕ Création de dossier (niveau 2+)
+app.post('/api/mkdir', requireLevel(2), (req, res) => {
   const { path: folderPath, name } = req.body;
   if (!name) return res.status(400).json({ error: 'Missing name' });
 
@@ -202,8 +230,8 @@ app.post('/api/mkdir', (req, res) => {
   });
 });
 
-// ➡️ Renommage de fichier/dossier
-app.post('/api/rename', (req, res) => {
+// ➡️ Renommage de fichier/dossier (niveau 2+)
+app.post('/api/rename', requireLevel(2), (req, res) => {
   const { path: filePath, newName } = req.body;
   if (!filePath || !newName) return res.status(400).json({ error: 'Missing parameters' });
 
@@ -229,6 +257,11 @@ app.post('/api/rename', (req, res) => {
       res.json({ success: true });
     });
   });
+});
+
+// Ajoute une route pour donner le nom et le niveau de l'utilisateur courant
+app.get('/api/me', requireAuth, (req, res) => {
+  res.json({ username: req.user.username, level: req.user.level });
 });
 
 // Démarrer serveur

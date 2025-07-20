@@ -1,0 +1,14 @@
+[
+  { "username": "admin_serveur",
+   "password": "infra",
+    "level": 3 
+},
+  { "username": "admin",
+   "password": "adminpass",
+    "level": 2 
+},
+  { "username": "invite",
+   "password": "invitepass",
+   "level": 1 
+}
+]
