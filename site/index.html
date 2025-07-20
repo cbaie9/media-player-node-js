@@ -29,6 +29,10 @@
           <button id="theme-toggle" class="control-btn theme-icon">
             <i class="fas fa-moon"></i>
           </button>
+          <!-- Bouton de déconnexion -->
+          <button id="logout-btn" class="control-btn" title="Déconnexion">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
         </div>
       </div>
     </div>
@@ -63,5 +67,9 @@
   </div>
 
   <script src="script.js"></script>
+  <script>
+    // Ajoute l'appel logout() sur le bouton
+    document.getElementById('logout-btn').onclick = logout;
+  </script>
 </body>
 </html>

@@ -593,3 +593,9 @@ function loadDirectory(path) {
       showError('Impossible de charger le dossier.');
     });
 }
+
+// Ajout d'une fonction pour se déconnecter (à appeler depuis un bouton si besoin)
+async function logout() {
+  await fetch('/api/logout', { method: 'POST' });
+  window.location.href = '/login';
+}

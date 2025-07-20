@@ -1,13 +1,16 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const basicAuth = require('express-basic-auth');
 const multer = require('multer');
+const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 const { USERNAME, PASSWORD } = require('./auth.config.js');
 
 const app = express();
 const PORT = 3000;
 const MEDIA_ROOT = path.join(__dirname, 'Appluncher');
+const SESSION_SECRET = crypto.randomBytes(32).toString('hex');
+const SESSIONS = new Set();
 
 // Configuration Multer pour l'upload
 const upload = multer({
@@ -23,14 +26,51 @@ const upload = multer({
   }
 });
 
-// Middleware
-app.use(basicAuth({
-  users: { [USERNAME]: PASSWORD },
-  challenge: true,
-  realm: 'Media Viewer'
-}));
-app.use(express.static(__dirname));
+app.use(cookieParser());
+app.use('/login', express.static(path.join(__dirname, 'login'))); // Sert le dossier login en public
+app.use(express.static(path.join(__dirname, 'site')));
 app.use(express.json());
+
+// Middleware d'authentification par cookie
+function requireAuth(req, res, next) {
+  const sid = req.cookies['sid'];
+  if (sid && SESSIONS.has(sid)) {
+    return next();
+  }
+  // Si requête API, renvoie 401, sinon redirige vers /login
+  if (req.path.startsWith('/api') || req.path.startsWith('/media')) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  res.redirect('/login');
+}
+
+// Page de login
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, 'login.html'));
+});
+
+// Traitement du login
+app.post('/api/login', express.json(), (req, res) => {
+  const { username, password } = req.body;
+  if (username === USERNAME && password === PASSWORD) {
+    const sid = crypto.randomBytes(32).toString('hex');
+    SESSIONS.add(sid);
+    res.cookie('sid', sid, { httpOnly: true, sameSite: 'Strict' });
+    return res.json({ success: true });
+  }
+  res.status(401).json({ error: 'Identifiants invalides' });
+});
+
+// Déconnexion
+app.post('/api/logout', (req, res) => {
+  const sid = req.cookies['sid'];
+  if (sid) SESSIONS.delete(sid);
+  res.clearCookie('sid');
+  res.json({ success: true });
+});
+
+// Toutes les routes suivantes nécessitent l'auth
+app.use(requireAuth);
 
 // Upload
 app.post('/api/upload', upload.array('mediaFiles'), (req, res) => {
@@ -59,7 +99,11 @@ app.post('/api/upload', upload.array('mediaFiles'), (req, res) => {
 // Liste de fichiers
 app.get('/api/list', (req, res) => {
   const relPath = req.query.path || '/';
-  const safePath = path.normalize(relPath).replace(/^(\.\.[/\\])+/, '');
+  // Correction : retire le préfixe /site si présent
+  let safePath = path.normalize(relPath).replace(/^(\.\.[/\\])+/, '');
+  // Si le chemin commence par /site/, on l'enlève
+  if (safePath.startsWith('/site/')) safePath = safePath.slice(5);
+  if (safePath.startsWith('site/')) safePath = safePath.slice(4);
   const targetDir = path.join(MEDIA_ROOT, safePath);
 
   if (!targetDir.startsWith(MEDIA_ROOT)) return res.status(403).json({ error: 'Access denied' });
