@@ -1,32 +1,38 @@
+// script.js
+/* ------------------------------------
+   Media Viewer – Script principal
+   ------------------------------------ */
+
+// ------------- Configuration -------------
 const SUPPORTED_FORMATS = {
   images: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
   videos: ['.mp4', '.webm', '.mov', '.avi', '.mkv']
 };
 
-// Éléments DOM
-const mediaElement = document.getElementById('media-element');
-const imageElement = document.getElementById('image-element');
-const fileListElement = document.getElementById('file-list');
-const currentPathElement = document.getElementById('current-path');
-const loadingIndicator = document.getElementById('loading-indicator');
-const errorDisplay = document.getElementById('media-error');
-const themeToggle = document.getElementById('theme-toggle');
-const backButton = document.getElementById('back-to-explorer');
-const mediaControls = document.getElementById('media-controls');
+// ------------- DOM – éléments ----------
+const mediaElement          = document.getElementById('media-element');
+const imageElement          = document.getElementById('image-element');
+const fileListElement       = document.getElementById('file-list');
+const currentPathElement    = document.getElementById('current-path');
+const loadingIndicator      = document.getElementById('loading-indicator');
+const errorDisplay          = document.getElementById('media-error');
+const themeToggle           = document.getElementById('theme-toggle');
+const backButton            = document.getElementById('back-to-explorer');
+const mediaControls         = document.getElementById('media-controls');
 const breadcrumbPathElement = document.getElementById('breadcrumb-path');
 
-// Variables d'état
-let currentFiles = [];
-let currentIndex = 0;
-let currentPath = '/';
-let touchStartX = 0;
-let mouseStartX = null;
-let deleteMode = false;
-let selectedPaths = new Set();
-let renameMode = false;
+// ------------- État interne -------------
+let currentFiles      = [];
+let currentIndex      = 0;
+let currentPath       = '/';
+let touchStartX       = 0;
+let mouseStartX       = null;
+let deleteMode        = false;
+let selectedPaths     = new Set();
+let renameMode        = false;
 let selectedRenamePath = null;
 
-// Initialisation
+// ------------- Initialisation -------------
 document.addEventListener('DOMContentLoaded', () => {
   initTheme();
   setupEventListeners();
@@ -34,25 +40,32 @@ document.addEventListener('DOMContentLoaded', () => {
   setupDeletionAndFolderControls();
   loadDirectory(currentPath);
 
+  // Recherche dans la liste
   document.getElementById('search-input').addEventListener('input', (e) => {
     filterFiles(e.target.value.toLowerCase());
   });
 
+  // Aller à un chemin spécifique
   document.getElementById('go-path-btn').addEventListener('click', () => {
     const newPath = document.getElementById('path-input').value.trim();
     if (newPath) loadDirectory(newPath.startsWith('/') ? newPath : '/' + newPath);
   });
+
+  // Récupérer les infos utilisateur (nom / niveau)
+  fetchUserInfo();
 });
 
+/* ------------------------------------
+   Thème – dark / light
+   ------------------------------------ */
 function initTheme() {
-  const savedTheme = localStorage.getItem('theme');
-  const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const prefersDark = savedTheme === 'dark' || (!savedTheme && systemDark);
+  const savedTheme   = localStorage.getItem('theme');
+  const systemDark   = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const prefersDark  = savedTheme === 'dark' || (!savedTheme && systemDark);
   document.body.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
   themeToggle.innerHTML = prefersDark ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
 }
 
-// Thème
 function toggleTheme() {
   const isDark = document.body.getAttribute('data-theme') === 'dark';
   const newTheme = isDark ? 'light' : 'dark';
@@ -61,7 +74,9 @@ function toggleTheme() {
   localStorage.setItem('theme', newTheme);
 }
 
-// Upload
+/* ------------------------------------
+   Upload – gestion de fichiers
+   ------------------------------------ */
 function setupUpload() {
   const uploadForm = document.querySelector('.upload-form');
   uploadForm.innerHTML = `
@@ -86,7 +101,7 @@ async function handleFileUpload(e) {
   const files = e.target.files;
   if (!files.length) return;
 
-  const progress = document.getElementById('upload-progress');
+  const progress  = document.getElementById('upload-progress');
   const progressBar = progress.querySelector('progress');
   const progressText = document.getElementById('progress-text');
 
@@ -102,7 +117,7 @@ async function handleFileUpload(e) {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/upload', true);
 
-    xhr.upload.onprogress = (e) => {
+    xhr.upload.onprogress = e => {
       if (e.lengthComputable) {
         const percent = Math.round((e.loaded / e.total) * 100);
         progressBar.value = percent;
@@ -132,10 +147,13 @@ async function handleFileUpload(e) {
   }
 }
 
+/* ------------------------------------
+   Render – liste de fichiers
+   ------------------------------------ */
 function renderFileList() {
   fileListElement.innerHTML = '';
 
-  // Ajout du bouton "Sortir du dossier" si on n'est pas à la racine
+  // Bouton "Sortir du dossier"
   if (currentPath !== '/' && currentPath !== '') {
     const upBtn = document.createElement('button');
     upBtn.className = 'control-btn up-btn';
@@ -144,7 +162,6 @@ function renderFileList() {
       let parent = currentPath.replace(/\/+$/, '');
       parent = parent.substring(0, parent.lastIndexOf('/'));
       if (!parent || parent === '') parent = '/';
-      // Toujours garder un slash final pour les dossiers
       if (!parent.endsWith('/')) parent += '/';
       loadDirectory(parent);
     };
@@ -163,39 +180,32 @@ function renderFileList() {
     const item = document.createElement('div');
     item.className = 'file-item';
 
-    // Détermination de l'icône selon le type
+    // Icône
     let iconClass = 'fa-file';
     if (file.isDirectory) {
       iconClass = 'fa-folder';
     } else {
       const ext = file.name.split('.').pop().toLowerCase();
-      if (SUPPORTED_FORMATS.images.includes(`.${ext}`)) {
-        iconClass = 'fa-file-image';
-      } else if (SUPPORTED_FORMATS.videos.includes(`.${ext}`)) {
-        iconClass = 'fa-file-video';
-      }
+      if (SUPPORTED_FORMATS.images.includes(`.${ext}`)) iconClass = 'fa-file-image';
+      else if (SUPPORTED_FORMATS.videos.includes(`.${ext}`)) iconClass = 'fa-file-video';
     }
 
     item.innerHTML = `<i class="fas ${iconClass}"></i>${file.name}`;
 
+    // Mode suppression
     if (deleteMode) {
       item.classList.add('deletable');
       item.addEventListener('click', () => {
         const selected = item.classList.toggle('selected');
-        if (selected) {
-          selectedPaths.add(file.path);
-        } else {
-          selectedPaths.delete(file.path);
-        }
+        if (selected) selectedPaths.add(file.path);
+        else selectedPaths.delete(file.path);
       });
-    } else if (renameMode) {
-      // Mode renommage : sélection unique
+    }
+    // Mode renommage
+    else if (renameMode) {
       item.classList.add('renamable');
       item.addEventListener('click', () => {
-        // Désélectionner l'ancien si besoin
-        Array.from(fileListElement.getElementsByClassName('selected-rename')).forEach(el => {
-          el.classList.remove('selected-rename');
-        });
+        Array.from(fileListElement.getElementsByClassName('selected-rename')).forEach(el => el.classList.remove('selected-rename'));
         if (selectedRenamePath === file.path) {
           selectedRenamePath = null;
         } else {
@@ -203,13 +213,12 @@ function renderFileList() {
           selectedRenamePath = file.path;
         }
       });
-      if (selectedRenamePath === file.path) {
-        item.classList.add('selected-rename');
-      }
-    } else {
+      if (selectedRenamePath === file.path) item.classList.add('selected-rename');
+    }
+    // Mode normal
+    else {
       item.addEventListener('click', () => {
         if (file.isDirectory) {
-          // Correction : toujours garder un slash final pour les dossiers
           let dirPath = file.path;
           if (!dirPath.endsWith('/')) dirPath += '/';
           loadDirectory(dirPath);
@@ -219,29 +228,31 @@ function renderFileList() {
       });
     }
 
-    if (deleteMode && selectedPaths.has(file.path)) {
-      item.classList.add('selected');
-    }
-
+    if (deleteMode && selectedPaths.has(file.path)) item.classList.add('selected');
     fileListElement.appendChild(item);
   });
 }
 
+/* ------------------------------------
+   Recherche & Filtrage
+   ------------------------------------ */
 function filterFiles(query) {
   Array.from(fileListElement.children).forEach(child => {
-    // Ignore le bouton "Sortir du dossier" lors du filtrage
     if (child.classList.contains('up-btn')) return;
     const match = child.textContent.toLowerCase().includes(query);
     child.style.display = match ? '' : 'none';
   });
 }
 
+/* ------------------------------------
+   Lecture média
+   ------------------------------------ */
 function openMedia(index) {
   const file = currentFiles[index];
   currentIndex = index;
-  const extension = file.name.split('.').pop().toLowerCase();
-  const isImage = SUPPORTED_FORMATS.images.includes(`.${extension}`);
-  const isVideo = SUPPORTED_FORMATS.videos.includes(`.${extension}`);
+  const ext = file.name.split('.').pop().toLowerCase();
+  const isImage = SUPPORTED_FORMATS.images.includes(`.${ext}`);
+  const isVideo = SUPPORTED_FORMATS.videos.includes(`.${ext}`);
 
   if (!isImage && !isVideo) {
     showError('Format non supporté');
@@ -249,10 +260,7 @@ function openMedia(index) {
   }
 
   document.body.classList.add('media-active');
-  // Affiche le bouton retour explorateur dans le header
   backButton.style.display = 'inline-block';
-
-  // Masque les barres et boutons inutiles en mode média
   document.querySelector('.upload-form').style.display = 'none';
   document.getElementById('search-input').style.display = 'none';
   document.querySelector('.path-controls').style.display = 'none';
@@ -282,31 +290,34 @@ function hideMedia() {
   mediaElement.pause();
   mediaElement.src = '';
   mediaControls.style.display = 'none';
-  // Cache le bouton retour explorateur dans le header
   backButton.style.display = 'none';
-
-  // Réaffiche les barres et boutons en mode explorateur
   document.querySelector('.upload-form').style.display = '';
   document.getElementById('search-input').style.display = '';
   document.querySelector('.path-controls').style.display = '';
 }
+
 function showError(message) {
   errorDisplay.textContent = message;
   errorDisplay.style.display = 'block';
 }
 
+/* ------------------------------------
+   Gestion des événements
+   ------------------------------------ */
 function setupEventListeners() {
   themeToggle.addEventListener('click', toggleTheme);
   backButton.addEventListener('click', hideMedia);
 
-  document.addEventListener('keydown', (e) => {
+  // Navigation clavier
+  document.addEventListener('keydown', e => {
     if (mediaElement.style.display !== 'none' || imageElement.style.display !== 'none') {
       if (e.key === 'ArrowLeft') showPrevious();
       else if (e.key === 'ArrowRight') showNext();
     }
   });
 
-  imageElement.addEventListener('click', (e) => {
+  // Navigation touch/mouse
+  imageElement.addEventListener('click', e => {
     const mid = window.innerWidth / 2;
     e.clientX < mid ? showPrevious() : showNext();
   });
@@ -315,18 +326,14 @@ function setupEventListeners() {
   document.addEventListener('mouseup', e => {
     if (mouseStartX === null) return;
     const delta = e.clientX - mouseStartX;
-    if (Math.abs(delta) > 100) {
-      delta < 0 ? showNext() : showPrevious();
-    }
+    if (Math.abs(delta) > 100) delta < 0 ? showNext() : showPrevious();
     mouseStartX = null;
   });
 
   imageElement.addEventListener('touchstart', e => touchStartX = e.touches[0].clientX);
   imageElement.addEventListener('touchend', e => {
     const delta = e.changedTouches[0].clientX - touchStartX;
-    if (Math.abs(delta) > 50) {
-      delta < 0 ? showNext() : showPrevious();
-    }
+    if (Math.abs(delta) > 50) delta < 0 ? showNext() : showPrevious();
   });
 
   document.getElementById('prev-btn').addEventListener('click', showPrevious);
@@ -345,6 +352,9 @@ function showNext() {
   if (currentIndex < currentFiles.length - 1) openMedia(currentIndex + 1);
 }
 
+/* ------------------------------------
+   Suppression
+   ------------------------------------ */
 async function deleteFile(filePath) {
   const res = await fetch('/api/delete', {
     method: 'DELETE',
@@ -354,42 +364,48 @@ async function deleteFile(filePath) {
   if (!res.ok) throw new Error('Échec suppression');
 }
 
-// 🔧 Contrôles Supprimer / Annuler / Nouveau dossier
+/* ------------------------------------
+   Contrôles Supprimer / Annuler / Nouveau dossier / Renommer
+   ------------------------------------ */
 function setupDeletionAndFolderControls() {
   const container = document.querySelector('.upload-form');
 
+  // Supprimer
   const deleteToggleBtn = document.createElement('button');
-  deleteToggleBtn.id = 'toggle-delete-mode';
+  deleteToggleBtn.id   = 'toggle-delete-mode';
   deleteToggleBtn.className = 'control-btn';
   deleteToggleBtn.innerHTML = '<i class="fas fa-trash"></i> Supprimer';
   container.appendChild(deleteToggleBtn);
 
   const cancelDeleteBtn = document.createElement('button');
-  cancelDeleteBtn.id = 'cancel-delete-mode';
+  cancelDeleteBtn.id   = 'cancel-delete-mode';
   cancelDeleteBtn.className = 'control-btn';
   cancelDeleteBtn.innerHTML = '<i class="fas fa-times"></i> Annuler';
   cancelDeleteBtn.style.display = 'none';
   container.appendChild(cancelDeleteBtn);
 
+  // Nouveau dossier
   const createFolderBtn = document.createElement('button');
-  createFolderBtn.id = 'create-folder-btn';
+  createFolderBtn.id   = 'create-folder-btn';
   createFolderBtn.className = 'control-btn';
   createFolderBtn.innerHTML = '<i class="fas fa-folder-plus"></i> Nouveau dossier';
   container.appendChild(createFolderBtn);
 
+  // Renommer
   const renameToggleBtn = document.createElement('button');
-  renameToggleBtn.id = 'toggle-rename-mode';
+  renameToggleBtn.id   = 'toggle-rename-mode';
   renameToggleBtn.className = 'control-btn';
   renameToggleBtn.innerHTML = '<i class="fas fa-i-cursor"></i> Renommer';
   container.appendChild(renameToggleBtn);
 
   const cancelRenameBtn = document.createElement('button');
-  cancelRenameBtn.id = 'cancel-rename-mode';
+  cancelRenameBtn.id   = 'cancel-rename-mode';
   cancelRenameBtn.className = 'control-btn';
   cancelRenameBtn.innerHTML = '<i class="fas fa-times"></i> Annuler';
   cancelRenameBtn.style.display = 'none';
   container.appendChild(cancelRenameBtn);
 
+  // Handlers
   deleteToggleBtn.addEventListener('click', () => {
     if (deleteMode && selectedPaths.size > 0) {
       if (confirm(`Supprimer ${selectedPaths.size} élément(s) ?`)) {
@@ -413,10 +429,10 @@ function setupDeletionAndFolderControls() {
     try {
       const res = await fetch('/api/mkdir', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: currentPath, name: name.trim() })
       });
-      if (!res.ok) throw new Error("Échec création dossier");
+      if (!res.ok) throw new Error('Échec création dossier');
       loadDirectory(currentPath);
     } catch (e) {
       console.error(e);
@@ -425,7 +441,7 @@ function setupDeletionAndFolderControls() {
   });
 
   renameToggleBtn.addEventListener('click', async () => {
-    if (deleteMode) return; // Ne pas activer en mode suppression
+    if (deleteMode) return; // ne pas activer en mode suppression
 
     if (!renameMode) {
       enterRenameMode();
@@ -435,16 +451,15 @@ function setupDeletionAndFolderControls() {
       if (!fileObj) return;
       let newName = prompt("Nouveau nom pour : " + fileObj.name, fileObj.name);
       if (!newName || !newName.trim()) return;
-
       newName = newName.trim();
 
-      // Vérification caractères interdits (simple)
+      // Vérification simple des caractères interdits
       if (/[\\/:*?"<>|]/.test(newName)) {
         showError("Nom de fichier invalide.");
         return;
       }
 
-      // Vérifie si le nom existe déjà dans le dossier courant
+      // Vérifier l’existence
       const exists = currentFiles.some(f =>
         f.name.toLowerCase() === newName.toLowerCase() && f.path !== selectedRenamePath
       );
@@ -453,14 +468,12 @@ function setupDeletionAndFolderControls() {
         return;
       }
 
-      // Gestion extension
+      // Gestion de l’extension pour les fichiers
       let finalName = newName;
       if (!fileObj.isDirectory) {
         const oldExt = fileObj.name.includes('.') ? fileObj.name.substring(fileObj.name.lastIndexOf('.')) : '';
         const hasExt = /\.[^\/\\]+$/.test(newName);
-        if (!hasExt && oldExt) {
-          finalName += oldExt;
-        }
+        if (!hasExt && oldExt) finalName += oldExt;
       }
 
       try {
@@ -507,7 +520,6 @@ function enterRenameMode() {
   selectedRenamePath = null;
   document.getElementById('toggle-rename-mode').innerHTML = '<i class="fas fa-i-cursor"></i> Renommer';
   document.getElementById('cancel-rename-mode').style.display = 'inline-block';
-  // Désactive le bouton suppression pendant renommage
   document.getElementById('toggle-delete-mode').disabled = true;
   renderFileList();
 }
@@ -521,14 +533,17 @@ function exitRenameMode() {
   renderFileList();
 }
 
+/* ------------------------------------
+   Breadcrumb & Chemin
+   ------------------------------------ */
 function updateBreadcrumbPath(path) {
-  // Nettoie le chemin et découpe
   let cleanPath = path.replace(/\\/g, '/').replace(/\/+/g, '/').replace(/\/$/, '');
   let parts = (cleanPath === '' || cleanPath === '/') ? [] : cleanPath.split('/').filter(Boolean);
 
   breadcrumbPathElement.innerHTML = '';
-  // Ajoute la racine toujours en premier
-  let rootSpan = document.createElement('span');
+
+  // Racine
+  const rootSpan = document.createElement('span');
   rootSpan.className = 'breadcrumb-part breadcrumb-link';
   rootSpan.innerHTML = '<i class="fas fa-folder"></i>';
   rootSpan.style.cursor = parts.length === 0 ? 'default' : 'pointer';
@@ -551,7 +566,7 @@ function updateBreadcrumbPath(path) {
 
       // Dossier cliquable
       current += '/' + part;
-      let span = document.createElement('span');
+      const span = document.createElement('span');
       span.className = 'breadcrumb-part';
       span.textContent = part;
       if (idx === parts.length - 1) {
@@ -561,24 +576,27 @@ function updateBreadcrumbPath(path) {
         span.classList.add('breadcrumb-link');
         span.style.cursor = 'pointer';
         span.addEventListener('click', () => {
-          // Toujours garder un slash final pour les dossiers
-          let p = '/' + parts.slice(0, idx + 1).join('/') + '/';
+          const p = '/' + parts.slice(0, idx + 1).join('/') + '/';
           loadDirectory(p);
         });
       }
       breadcrumbPathElement.appendChild(span);
     });
   }
-  // Met à jour aussi le champ path-input pour éviter les slashs en trop
+
+  // Met à jour le champ "path-input" pour éviter les slashs en trop
   document.getElementById('path-input').value = cleanPath === '' ? '/' : '/' + parts.join('/');
 }
 
+/* ------------------------------------
+   Chargement d’un répertoire
+   ------------------------------------ */
 function loadDirectory(path) {
-  // Nettoie le chemin pour éviter les slashs multiples ou finaux
+  // Nettoyage du chemin
   let cleanPath = path.replace(/\\/g, '/').replace(/\/+/g, '/');
-  // Toujours garder un slash final pour les dossiers (sauf racine)
   if (cleanPath !== '/' && !cleanPath.endsWith('/')) cleanPath += '/';
   if (cleanPath === '') cleanPath = '/';
+
   fetch(`/api/list?path=${encodeURIComponent(cleanPath)}`)
     .then(res => res.json())
     .then(data => {
@@ -594,8 +612,31 @@ function loadDirectory(path) {
     });
 }
 
-// Ajout d'une fonction pour se déconnecter (à appeler depuis un bouton si besoin)
+/* ------------------------------------
+   Connexion / Déconnexion
+   ------------------------------------ */
 async function logout() {
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/login';
+}
+
+/* ------------------------------------
+   Récupération des infos utilisateur
+   ------------------------------------ */
+async function fetchUserInfo() {
+  try {
+    const res = await fetch('/api/me', { credentials: 'same-origin' });
+    if (res.status === 401) {
+      // Pas connecté
+      window.location.href = '/login';
+      return;
+    }
+    const data = await res.json();
+    document.getElementById('user-menu-name').textContent = data.username;
+    document.getElementById('user-info-name').textContent   = data.username;
+    document.getElementById('user-info-level').textContent = data.level;
+  } catch (e) {
+    console.error('Erreur lors du chargement des infos utilisateur', e);
+    window.location.href = '/login';
+  }
 }
